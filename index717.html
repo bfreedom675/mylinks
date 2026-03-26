@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мої посилання</title>
+
+<style>
+body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#f7f0ff,#ffe6f2);
+    display:flex;
+    justify-content:center;
+    min-height:100vh;
+}
+
+.container{
+    width:90%;
+    max-width:800px;
+    background:#fff;
+    padding:25px;
+    border-radius:20px;
+    margin:20px 0;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
+}
+
+h1{
+    text-align:center;
+    color:#6a3df0;
+}
+
+/* ADD */
+.add-box{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+}
+
+.add-box input{
+    flex:1;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #ddd;
+}
+
+.add-box button{
+    background:#6a3df0;
+    color:white;
+    border:none;
+    padding:10px 15px;
+    border-radius:10px;
+    cursor:pointer;
+}
+
+/* CARD */
+.link-card{
+    border:1px solid #eee;
+    border-radius:15px;
+    padding:15px;
+    margin:15px 0;
+    background:#fafaff;
+}
+
+.top-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.favicon{
+    width:32px;
+    height:32px;
+}
+
+.link-card a{
+    color:#333;
+    font-weight:bold;
+    text-decoration:none;
+}
+
+.actions{
+    margin-top:10px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+button{
+    padding:6px 10px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    background:#6a3df0;
+    color:white;
+    font-size:12px;
+}
+
+button:hover{
+    opacity:0.85;
+}
+
+.delete{
+    background:transparent;
+    color:#6a3df0;
+    border:1px solid #ddd;
+    padding:3px 6px;
+    font-size:11px;
+    border-radius:6px;
+}
+
+.delete:hover{
+    background:#f3f3ff;
+}
+
+.note-box{
+    margin-top:10px;
+    background:#fff;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #eee;
+}
+
+.note{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#f3f3ff;
+    padding:6px;
+    margin-top:5px;
+    border-radius:8px;
+    font-size:13px;
+}
+
+.preview-img{
+    margin-top:10px;
+    max-width:150px;
+    border-radius:10px;
+    display:block;
+}
+
+.footer{
+    text-align:center;
+    margin-top:20px;
+    font-size:12px;
+    color:#888;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🌐 Мої ресурси</h1>
+
+<div class="add-box">
+    <input id="newUrl" placeholder="Встав посилання (https://...)">
+    <button onclick="addSite()">➕ Додати сайт</button>
+</div>
+
+<div id="list"></div>
+
+<div class="footer">© 2026 Мої ресурси</div>
+</div>
+
+<script>
+
+let links = JSON.parse(localStorage.getItem("links")) || [
+"https://campsite.bio/creativme",
+"https://lnk.bio/bibguide",
+"https://beacons.ai/creative_me"
+];
+
+function saveLinks(){
+    localStorage.setItem("links", JSON.stringify(links));
+}
+
+function addSite(){
+    const input = document.getElementById("newUrl");
+    const url = input.value.trim();
+
+    if(!url){
+        alert("Встав посилання!");
+        return;
+    }
+
+    links.push(url);
+    saveLinks();
+    input.value = "";
+    render();
+}
+
+// --- DATA ---
+function getData(url){
+    return JSON.parse(localStorage.getItem(url)) || {notes:[], image:null};
+}
+
+function saveData(url,data){
+    localStorage.setItem(url, JSON.stringify(data));
+}
+
+// --- IMAGE ---
+function uploadImage(event,url){
+    const file = event.target.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const data = getData(url);
+        data.image = e.target.result;
+        saveData(url,data);
+        render();
+    };
+    reader.readAsDataURL(file);
+}
+
+function deleteImage(url){
+    const data = getData(url);
+    data.image = null;
+    saveData(url,data);
+    render();
+}
+
+// --- NOTES ---
+function addNote(url){
+    const text = prompt("Введіть нотатку:");
+    if(!text) return;
+
+    const data = getData(url);
+    data.notes.push({text});
+    saveData(url,data);
+    render();
+}
+
+function deleteNote(url,index){
+    const data = getData(url);
+    data.notes.splice(index,1);
+    saveData(url,data);
+    render();
+}
+
+// --- RENDER ---
+function render(){
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    links.forEach(url=>{
+        const data = getData(url);
+
+        const div = document.createElement("div");
+        div.className = "link-card";
+
+        const domain = new URL(url).hostname;
+        const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+
+        div.innerHTML = `
+            <div class="top-row">
+                <img class="favicon" src="${favicon}">
+                <a href="${url}" target="_blank">${domain}</a>
+            </div>
+
+            <div class="actions">
+                <button onclick="addNote('${url}')">➕ Нотатка</button>
+                
+                <input type="file" onchange="uploadImage(event,'${url}')">
+
+                ${data.image ? `<button onclick="deleteImage('${url}')">🗑 Видалити фото</button>` : ""}
+            </div>
+
+            ${data.image ? `<img class="preview-img" src="${data.image}">` : ""}
+
+            <div class="note-box">
+                ${data.notes.map((n,i)=>`
+                    <div class="note">
+                        <span>${n.text}</span>
+                        <button class="delete" onclick="deleteNote('${url}',${i})">❌</button>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+
+        list.appendChild(div);
+    });
+}
+
+render();
+
+</script>
+
+</body>
+</html>
