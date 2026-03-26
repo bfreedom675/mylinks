@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>🌸 BookFlow v5.3 — стабільна версія</title>
+
+<style>
+:root{
+    --pink:#ff5fa2;
+    --purple:#7b5cff;
+    --bg1:#ffe6f3;
+    --bg2:#efe6ff;
+    --card:#ffffff;
+    --user-note:#f3e8ff;
+}
+*{box-sizing:border-box;}
+body{
+    margin:0;
+    font-family:'Segoe UI',Arial;
+    display:flex;
+    height:100vh;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+}
+
+/* SIDEBAR */
+#sidebar{
+    width:300px;
+    padding:20px;
+    background:rgba(255,255,255,0.9);
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    overflow:auto;
+}
+input,button,select{
+    padding:10px;
+    border:none;
+    border-radius:10px;
+}
+button{
+    background:linear-gradient(90deg,var(--pink),var(--purple));
+    color:white;
+    cursor:pointer;
+}
+
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;}
+#chat{
+    flex:1;
+    padding:20px;
+    overflow:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+.msg{
+    padding:12px;
+    border-radius:12px;
+    max-width:70%;
+    position:relative;
+}
+.user{align-self:flex-end;background:var(--user-note);}
+.bot{align-self:flex-start;background:white;}
+
+.photo-container img{
+    max-width:150px;
+    margin-top:5px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+.delete-note{
+    position:absolute;
+    top:5px;
+    right:5px;
+    cursor:pointer;
+    opacity:0;
+}
+.msg:hover .delete-note{opacity:1;}
+
+#inputArea{
+    display:flex;
+    gap:8px;
+    padding:15px;
+    background:white;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+<h2>🌸 BookFlow</h2>
+
+<input id="search" placeholder="🔍 Пошук..." oninput="renderBooks()">
+
+<div style="display:flex;gap:5px;">
+<input id="newBook" placeholder="Нова книга" style="flex:1">
+<button onclick="addBook()">➕</button>
+</div>
+
+<select id="sortSelect" onchange="renderBooks()">
+<option value="name">Назва</option>
+<option value="last">Останні</option>
+<option value="rating">Рейтинг</option>
+</select>
+
+<button onclick="downloadBackup()">💾 Backup</button>
+
+<input id="backupInput" type="file" onchange="loadBackup(event)" hidden>
+
+<button onclick="document.getElementById('backupInput').click()">📤 Завантажити</button>
+
+<div id="bookList"></div>
+</div>
+
+<div id="main">
+<header id="title">📚 Оберіть книгу</header>
+<div id="stats"></div>
+<div id="chat"></div>
+
+<div id="inputArea">
+<input id="text" placeholder="Нотатка...">
+<input id="rating" type="number" min="1" max="10" placeholder="⭐">
+
+<button onclick="addNote()">➤</button>
+
+<button onclick="document.getElementById('photoInput').click()">📸</button>
+<input id="photoInput" type="file" multiple accept="image/*" hidden onchange="handlePhotoSelect(event)">
+</div>
+</div>
+
+<script>
+let db = JSON.parse(localStorage.getItem("bookflow_v5")) || {books:{}};
+let current=null;
+let selectedPhotos=[];
+let isLoadingPhotos=false;
+
+/* ENTER */
+document.getElementById("text").addEventListener("keydown",e=>{
+if(e.key==="Enter"&&!e.shiftKey){
+e.preventDefault();
+addNote();
+}
+});
+
+/* SAVE debounce */
+let t;
+function save(){
+clearTimeout(t);
+t=setTimeout(()=>{
+localStorage.setItem("bookflow_v5",JSON.stringify(db));
+},300);
+}
+
+/* BOOKS */
+function addBook(){
+let name=document.getElementById("newBook").value.trim();
+if(!name)return alert("Введіть назву");
+
+if(!db.books[name])db.books[name]=[];
+
+document.getElementById("newBook").value="";
+save();
+renderBooks();
+openBook(name);
+}
+
+function safe(s){return s.replace(/'/g,"\\'");}
+
+function renderBooks(){
+let list=document.getElementById("bookList");
+let search=document.getElementById("search").value.toLowerCase();
+
+list.innerHTML="";
+
+Object.keys(db.books)
+.filter(b=>b.toLowerCase().includes(search))
+.forEach(name=>{
+let div=document.createElement("div");
+div.innerHTML=`
+<span onclick="openBook('${safe(name)}')">📖 ${name}</span>
+<span onclick="deleteBook('${safe(name)}')">✕</span>
+`;
+list.appendChild(div);
+});
+
+updateStats();
+}
+
+function deleteBook(name){
+if(!confirm("Видалити?"))return;
+delete db.books[name];
+save();
+renderBooks();
+document.getElementById("chat").innerHTML="";
+}
+
+function openBook(name){
+current=name;
+document.getElementById("title").innerText="📖 "+name;
+renderChat();
+}
+
+/* CHAT */
+function renderChat(){
+let chat=document.getElementById("chat");
+chat.innerHTML="";
+
+if(!current)return;
+
+db.books[current].forEach((m,i)=>{
+let div=document.createElement("div");
+div.className="msg "+m.type;
+
+let html=m.text||"";
+
+if(m.photos){
+html+=`<div class="photo-container">
+${m.photos.map(p=>`<img src="${p}">`).join("")}
+</div>`;
+}
+
+div.innerHTML=html+`<span class="delete-note" onclick="deleteNote(${i})">✕</span>`;
+
+chat.appendChild(div);
+});
+
+chat.scrollTop=chat.scrollHeight;
+}
+
+function deleteNote(i){
+db.books[current].splice(i,1);
+save();
+renderChat();
+}
+
+/* PHOTO */
+function handlePhotoSelect(e){
+let files=e.target.files;
+if(!files.length)return;
+
+selectedPhotos=[];
+isLoadingPhotos=true;
+
+let loaded=0;
+
+Array.from(files).forEach(file=>{
+let reader=new FileReader();
+
+reader.onload=(ev)=>{
+selectedPhotos.push(ev.target.result);
+loaded++;
+
+if(loaded===files.length){
+isLoadingPhotos=false;
+}
+};
+
+reader.readAsDataURL(file);
+});
+
+e.target.value="";
+}
+
+/* ADD NOTE */
+function addNote(){
+if(!current)return alert("Оберіть книгу");
+
+if(isLoadingPhotos)return alert("Фото ще завантажуються...");
+
+let text=document.getElementById("text").value.trim();
+let rating=document.getElementById("rating").value;
+
+if(!text&&!selectedPhotos.length)return;
+
+if(rating)text+=`\n⭐ ${rating}/10`;
+
+db.books[current].push({
+type:"user",
+text:text,
+photos:selectedPhotos.length?[...selectedPhotos]:null
+});
+
+db.books[current].push({type:"bot",text:"💾 Збережено"});
+
+document.getElementById("text").value="";
+document.getElementById("rating").value="";
+selectedPhotos=[];
+
+save();
+renderChat();
+updateStats();
+}
+
+/* STATS */
+function updateStats(){
+let count=Object.keys(db.books).length;
+document.getElementById("stats").innerText="📚 "+count;
+}
+
+/* BACKUP */
+function downloadBackup(){
+let blob=new Blob([JSON.stringify(db)],{type:"application/json"});
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="backup.json";
+a.click();
+}
+
+function loadBackup(e){
+let file=e.target.files[0];
+let reader=new FileReader();
+
+reader.onload=ev=>{
+db=JSON.parse(ev.target.result);
+save();
+renderBooks();
+};
+
+reader.readAsText(file);
+}
+
+renderBooks();
+</script>
+</body>
+</html>
