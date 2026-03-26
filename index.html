@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Мої посилання (Sync)</title>
+<title>Мої посилання (Firebase Sync)</title>
 
 <style>
 body{
@@ -94,13 +94,21 @@ button{
     font-size:12px;
 }
 
-.delete{
+/* ⭐ ЛЕДЬ ПОМІТНА КНОПКА ВИДАЛЕННЯ */
+.delete-btn{
     background:transparent;
-    color:#6a3df0;
-    border:1px solid #ddd;
-    padding:3px 6px;
-    font-size:11px;
-    border-radius:6px;
+    color:#bdbdbd;
+    font-size:16px;
+    padding:4px 6px;
+    border:none;
+    cursor:pointer;
+    opacity:0.5;
+    transition:0.2s;
+}
+
+.delete-btn:hover{
+    opacity:1;
+    color:#8c8c8c;
 }
 
 .note-box{
@@ -125,7 +133,6 @@ button{
     margin-top:10px;
     max-width:150px;
     border-radius:10px;
-    display:block;
 }
 
 .footer{
@@ -153,13 +160,12 @@ button{
 <div class="footer">© 2026 Мої ресурси</div>
 </div>
 
-<!-- FIREBASE -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
 
-// 🔥 ТВОЯ FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAccAxcis95_-So-VZivM7D1ene56Eq-x0",
   authDomain: "mylinks-1f843.firebaseapp.com",
@@ -174,7 +180,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const col = db.collection("links");
 
-// ---------- ADD ----------
+// ADD SITE
 function addSite(){
     const input = document.getElementById("newUrl");
     const url = input.value.trim();
@@ -196,7 +202,14 @@ function addSite(){
     input.value = "";
 }
 
-// ---------- NOTES ----------
+// DELETE SITE
+function deleteSite(id){
+    if(confirm("Видалити цей сайт повністю?")){
+        col.doc(id).delete();
+    }
+}
+
+// NOTES
 function addNote(id){
     const text = prompt("Введіть нотатку:");
     if(!text) return;
@@ -216,7 +229,7 @@ function deleteNote(id,index){
     });
 }
 
-// ---------- IMAGE ----------
+// IMAGE
 function uploadImage(event,id){
     const file = event.target.files[0];
     if(!file) return;
@@ -232,7 +245,7 @@ function deleteImage(id){
     col.doc(id).update({image:null});
 }
 
-// ---------- REALTIME RENDER ----------
+// REALTIME
 col.onSnapshot(snapshot=>{
     const list = document.getElementById("list");
     list.innerHTML = "";
@@ -255,7 +268,10 @@ col.onSnapshot(snapshot=>{
             <div class="actions">
                 <button onclick="addNote('${doc.id}')">➕ Нотатка</button>
                 <input type="file" onchange="uploadImage(event,'${doc.id}')">
+
                 ${d.image ? `<button onclick="deleteImage('${doc.id}')">🗑 Фото</button>` : ""}
+
+                <button class="delete-btn" onclick="deleteSite('${doc.id}')">❌</button>
             </div>
 
             ${d.image ? `<img class="preview-img" src="${d.image}">` : ""}
@@ -264,7 +280,7 @@ col.onSnapshot(snapshot=>{
                 ${(d.notes||[]).map((n,i)=>`
                     <div class="note">
                         <span>${n.text}</span>
-                        <button class="delete" onclick="deleteNote('${doc.id}',${i})">❌</button>
+                        <button onclick="deleteNote('${doc.id}',${i})">❌</button>
                     </div>
                 `).join("")}
             </div>
