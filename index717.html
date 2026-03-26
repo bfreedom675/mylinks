@@ -3,12 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Мої посилання</title>
+<title>MyLinks Firebase</title>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
 body{
     margin:0;
-    font-family: Arial, sans-serif;
+    font-family: Arial;
     background: linear-gradient(135deg,#f7f0ff,#ffe6f2);
     display:flex;
     justify-content:center;
@@ -22,15 +25,10 @@ body{
     padding:25px;
     border-radius:20px;
     margin:20px 0;
-    box-shadow:0 10px 30px rgba(0,0,0,0.1);
 }
 
-h1{
-    text-align:center;
-    color:#6a3df0;
-}
+h1{ text-align:center; color:#6a3df0; }
 
-/* ADD */
 .add-box{
     display:flex;
     gap:10px;
@@ -50,34 +48,23 @@ h1{
     border:none;
     padding:10px 15px;
     border-radius:10px;
-    cursor:pointer;
 }
 
-/* CARD */
 .link-card{
     border:1px solid #eee;
-    border-radius:15px;
     padding:15px;
+    border-radius:15px;
     margin:15px 0;
     background:#fafaff;
 }
 
 .top-row{
     display:flex;
-    align-items:center;
     gap:10px;
+    align-items:center;
 }
 
-.favicon{
-    width:32px;
-    height:32px;
-}
-
-.link-card a{
-    color:#333;
-    font-weight:bold;
-    text-decoration:none;
-}
+.favicon{ width:32px; }
 
 .actions{
     margin-top:10px;
@@ -87,63 +74,28 @@ h1{
 }
 
 button{
-    padding:6px 10px;
     border:none;
-    border-radius:8px;
-    cursor:pointer;
     background:#6a3df0;
     color:white;
+    padding:6px 10px;
+    border-radius:8px;
+    cursor:pointer;
     font-size:12px;
-}
-
-button:hover{
-    opacity:0.85;
 }
 
 .delete{
     background:transparent;
     color:#6a3df0;
     border:1px solid #ddd;
-    padding:3px 6px;
-    font-size:11px;
-    border-radius:6px;
-}
-
-.delete:hover{
-    background:#f3f3ff;
-}
-
-.note-box{
-    margin-top:10px;
-    background:#fff;
-    padding:10px;
-    border-radius:10px;
-    border:1px solid #eee;
 }
 
 .note{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
     background:#f3f3ff;
     padding:6px;
     margin-top:5px;
     border-radius:8px;
-    font-size:13px;
-}
-
-.preview-img{
-    margin-top:10px;
-    max-width:150px;
-    border-radius:10px;
-    display:block;
-}
-
-.footer{
-    text-align:center;
-    margin-top:20px;
-    font-size:12px;
-    color:#888;
+    display:flex;
+    justify-content:space-between;
 }
 </style>
 </head>
@@ -152,129 +104,127 @@ button:hover{
 
 <div class="container">
 
-<h1>🌐 Мої ресурси</h1>
+<h1>🌐 MyLinks Firebase</h1>
 
 <div class="add-box">
-    <input id="newUrl" placeholder="Встав посилання (https://...)">
-    <button onclick="addSite()">➕ Додати сайт</button>
+    <input id="urlInput" placeholder="Додай сайт (https://...)">
+    <button onclick="addSite()">➕</button>
 </div>
 
 <div id="list"></div>
 
-<div class="footer">© 2026 Мої ресурси</div>
 </div>
 
 <script>
+// 🔥 ТВОЯ FIREBASE КОНФІГУРАЦІЯ
+const firebaseConfig = {
+  apiKey: "AIzaSyAccAxcis95_-So-VZivM7D1ene56Eq-x0",
+  authDomain: "mylinks-1f843.firebaseapp.com",
+  projectId: "mylinks-1f843",
+  storageBucket: "mylinks-1f843.firebasestorage.app",
+  messagingSenderId: "138024507959",
+  appId: "1:138024507959:web:38d54a425786f4669a3db2",
+  measurementId: "G-LRDQYTHY4P"
+};
 
-let links = JSON.parse(localStorage.getItem("links")) || [
-"https://campsite.bio/creativme",
-"https://lnk.bio/bibguide",
-"https://beacons.ai/creative_me"
-];
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const linksRef = db.collection("links");
 
-function saveLinks(){
-    localStorage.setItem("links", JSON.stringify(links));
-}
-
+// ➕ ДОДАТИ САЙТ
 function addSite(){
-    const input = document.getElementById("newUrl");
-    const url = input.value.trim();
+    const url = document.getElementById("urlInput").value.trim();
+    if(!url) return;
 
-    if(!url){
-        alert("Встав посилання!");
-        return;
-    }
+    linksRef.add({
+        url,
+        image: null,
+        notes: [],
+        createdAt: Date.now()
+    });
 
-    links.push(url);
-    saveLinks();
-    input.value = "";
-    render();
+    document.getElementById("urlInput").value = "";
 }
 
-// --- DATA ---
-function getData(url){
-    return JSON.parse(localStorage.getItem(url)) || {notes:[], image:null};
+// 📝 ДОДАТИ НОТАТКУ
+function addNote(id){
+    const text = prompt("Нотатка:");
+    if(!text) return;
+
+    const doc = linksRef.doc(id);
+
+    doc.get().then(snap=>{
+        let data = snap.data();
+        let notes = data.notes || [];
+        notes.push(text);
+
+        doc.update({notes});
+    });
 }
 
-function saveData(url,data){
-    localStorage.setItem(url, JSON.stringify(data));
+// 🗑 ВИДАЛИТИ НОТАТКУ
+function deleteNote(id,index){
+    const doc = linksRef.doc(id);
+
+    doc.get().then(snap=>{
+        let data = snap.data();
+        data.notes.splice(index,1);
+        doc.update({notes:data.notes});
+    });
 }
 
-// --- IMAGE ---
-function uploadImage(event,url){
-    const file = event.target.files[0];
+// 🖼 ЗАВАНТАЖИТИ ФОТО
+function uploadImage(e,id){
+    const file = e.target.files[0];
     if(!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e){
-        const data = getData(url);
-        data.image = e.target.result;
-        saveData(url,data);
-        render();
+    reader.onload = function(){
+        linksRef.doc(id).update({
+            image: reader.result
+        });
     };
     reader.readAsDataURL(file);
 }
 
-function deleteImage(url){
-    const data = getData(url);
-    data.image = null;
-    saveData(url,data);
-    render();
+// 🗑 ВИДАЛИТИ ФОТО
+function deleteImage(id){
+    linksRef.doc(id).update({image:null});
 }
 
-// --- NOTES ---
-function addNote(url){
-    const text = prompt("Введіть нотатку:");
-    if(!text) return;
-
-    const data = getData(url);
-    data.notes.push({text});
-    saveData(url,data);
-    render();
-}
-
-function deleteNote(url,index){
-    const data = getData(url);
-    data.notes.splice(index,1);
-    saveData(url,data);
-    render();
-}
-
-// --- RENDER ---
-function render(){
+// 🔄 РЕАЛЬНИЙ ЧАС
+linksRef.onSnapshot(snapshot=>{
     const list = document.getElementById("list");
     list.innerHTML = "";
 
-    links.forEach(url=>{
-        const data = getData(url);
+    snapshot.forEach(doc=>{
+        const d = doc.data();
+
+        const domain = d.url.includes("://") ? new URL(d.url).hostname : d.url;
+        const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
         const div = document.createElement("div");
         div.className = "link-card";
 
-        const domain = new URL(url).hostname;
-        const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
-
         div.innerHTML = `
             <div class="top-row">
                 <img class="favicon" src="${favicon}">
-                <a href="${url}" target="_blank">${domain}</a>
+                <a href="${d.url}" target="_blank">${domain}</a>
             </div>
 
             <div class="actions">
-                <button onclick="addNote('${url}')">➕ Нотатка</button>
-                
-                <input type="file" onchange="uploadImage(event,'${url}')">
-
-                ${data.image ? `<button onclick="deleteImage('${url}')">🗑 Видалити фото</button>` : ""}
+                <button onclick="addNote('${doc.id}')">➕ Нотатка</button>
+                <input type="file" onchange="uploadImage(event,'${doc.id}')">
+                ${d.image ? `<button onclick="deleteImage('${doc.id}')">🗑 Фото</button>` : ""}
             </div>
 
-            ${data.image ? `<img class="preview-img" src="${data.image}">` : ""}
+            ${d.image ? `<img src="${d.image}" style="max-width:150px;border-radius:10px;">` : ""}
 
-            <div class="note-box">
-                ${data.notes.map((n,i)=>`
+            <div>
+                ${(d.notes || []).map((n,i)=>`
                     <div class="note">
-                        <span>${n.text}</span>
-                        <button class="delete" onclick="deleteNote('${url}',${i})">❌</button>
+                        <span>${n}</span>
+                        <button class="delete" onclick="deleteNote('${doc.id}',${i})">❌</button>
                     </div>
                 `).join("")}
             </div>
@@ -282,10 +232,7 @@ function render(){
 
         list.appendChild(div);
     });
-}
-
-render();
-
+});
 </script>
 
 </body>
