@@ -3,15 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyLinks Firebase</title>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<title>Мої посилання (Sync)</title>
 
 <style>
 body{
     margin:0;
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     background: linear-gradient(135deg,#f7f0ff,#ffe6f2);
     display:flex;
     justify-content:center;
@@ -25,9 +22,13 @@ body{
     padding:25px;
     border-radius:20px;
     margin:20px 0;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
 }
 
-h1{ text-align:center; color:#6a3df0; }
+h1{
+    text-align:center;
+    color:#6a3df0;
+}
 
 .add-box{
     display:flex;
@@ -48,23 +49,33 @@ h1{ text-align:center; color:#6a3df0; }
     border:none;
     padding:10px 15px;
     border-radius:10px;
+    cursor:pointer;
 }
 
 .link-card{
     border:1px solid #eee;
-    padding:15px;
     border-radius:15px;
+    padding:15px;
     margin:15px 0;
     background:#fafaff;
 }
 
 .top-row{
     display:flex;
-    gap:10px;
     align-items:center;
+    gap:10px;
 }
 
-.favicon{ width:32px; }
+.favicon{
+    width:32px;
+    height:32px;
+}
+
+a{
+    color:#333;
+    font-weight:bold;
+    text-decoration:none;
+}
 
 .actions{
     margin-top:10px;
@@ -74,12 +85,12 @@ h1{ text-align:center; color:#6a3df0; }
 }
 
 button{
-    border:none;
-    background:#6a3df0;
-    color:white;
     padding:6px 10px;
+    border:none;
     border-radius:8px;
     cursor:pointer;
+    background:#6a3df0;
+    color:white;
     font-size:12px;
 }
 
@@ -87,15 +98,41 @@ button{
     background:transparent;
     color:#6a3df0;
     border:1px solid #ddd;
+    padding:3px 6px;
+    font-size:11px;
+    border-radius:6px;
+}
+
+.note-box{
+    margin-top:10px;
+    background:#fff;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #eee;
 }
 
 .note{
+    display:flex;
+    justify-content:space-between;
     background:#f3f3ff;
     padding:6px;
     margin-top:5px;
     border-radius:8px;
-    display:flex;
-    justify-content:space-between;
+    font-size:13px;
+}
+
+.preview-img{
+    margin-top:10px;
+    max-width:150px;
+    border-radius:10px;
+    display:block;
+}
+
+.footer{
+    text-align:center;
+    margin-top:20px;
+    font-size:12px;
+    color:#888;
 }
 </style>
 </head>
@@ -104,19 +141,25 @@ button{
 
 <div class="container">
 
-<h1>🌐 MyLinks Firebase</h1>
+<h1>🌐 Мої ресурси (Sync)</h1>
 
 <div class="add-box">
-    <input id="urlInput" placeholder="Додай сайт (https://...)">
-    <button onclick="addSite()">➕</button>
+    <input id="newUrl" placeholder="Встав посилання (https://...)">
+    <button onclick="addSite()">➕ Додати сайт</button>
 </div>
 
 <div id="list"></div>
 
+<div class="footer">© 2026 Мої ресурси</div>
 </div>
 
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-// 🔥 ТВОЯ FIREBASE КОНФІГУРАЦІЯ
+
+// 🔥 ТВОЯ FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAccAxcis95_-So-VZivM7D1ene56Eq-x0",
   authDomain: "mylinks-1f843.firebaseapp.com",
@@ -129,78 +172,75 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const linksRef = db.collection("links");
+const col = db.collection("links");
 
-// ➕ ДОДАТИ САЙТ
+// ---------- ADD ----------
 function addSite(){
-    const url = document.getElementById("urlInput").value.trim();
-    if(!url) return;
+    const input = document.getElementById("newUrl");
+    const url = input.value.trim();
 
-    linksRef.add({
+    if(!url){
+        alert("Встав посилання!");
+        return;
+    }
+
+    const id = btoa(url);
+
+    col.doc(id).set({
         url,
-        image: null,
         notes: [],
-        createdAt: Date.now()
+        image: null,
+        created: Date.now()
     });
 
-    document.getElementById("urlInput").value = "";
+    input.value = "";
 }
 
-// 📝 ДОДАТИ НОТАТКУ
+// ---------- NOTES ----------
 function addNote(id){
-    const text = prompt("Нотатка:");
+    const text = prompt("Введіть нотатку:");
     if(!text) return;
 
-    const doc = linksRef.doc(id);
-
-    doc.get().then(snap=>{
-        let data = snap.data();
-        let notes = data.notes || [];
-        notes.push(text);
-
-        doc.update({notes});
+    col.doc(id).get().then(doc=>{
+        const data = doc.data();
+        data.notes.push({text});
+        col.doc(id).update({notes:data.notes});
     });
 }
 
-// 🗑 ВИДАЛИТИ НОТАТКУ
 function deleteNote(id,index){
-    const doc = linksRef.doc(id);
-
-    doc.get().then(snap=>{
-        let data = snap.data();
+    col.doc(id).get().then(doc=>{
+        const data = doc.data();
         data.notes.splice(index,1);
-        doc.update({notes:data.notes});
+        col.doc(id).update({notes:data.notes});
     });
 }
 
-// 🖼 ЗАВАНТАЖИТИ ФОТО
-function uploadImage(e,id){
-    const file = e.target.files[0];
+// ---------- IMAGE ----------
+function uploadImage(event,id){
+    const file = event.target.files[0];
     if(!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(){
-        linksRef.doc(id).update({
-            image: reader.result
-        });
+    reader.onload = e=>{
+        col.doc(id).update({image:e.target.result});
     };
     reader.readAsDataURL(file);
 }
 
-// 🗑 ВИДАЛИТИ ФОТО
 function deleteImage(id){
-    linksRef.doc(id).update({image:null});
+    col.doc(id).update({image:null});
 }
 
-// 🔄 РЕАЛЬНИЙ ЧАС
-linksRef.onSnapshot(snapshot=>{
+// ---------- REALTIME RENDER ----------
+col.onSnapshot(snapshot=>{
     const list = document.getElementById("list");
     list.innerHTML = "";
 
     snapshot.forEach(doc=>{
         const d = doc.data();
 
-        const domain = d.url.includes("://") ? new URL(d.url).hostname : d.url;
+        const domain = new URL(d.url).hostname;
         const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
         const div = document.createElement("div");
@@ -218,12 +258,12 @@ linksRef.onSnapshot(snapshot=>{
                 ${d.image ? `<button onclick="deleteImage('${doc.id}')">🗑 Фото</button>` : ""}
             </div>
 
-            ${d.image ? `<img src="${d.image}" style="max-width:150px;border-radius:10px;">` : ""}
+            ${d.image ? `<img class="preview-img" src="${d.image}">` : ""}
 
-            <div>
-                ${(d.notes || []).map((n,i)=>`
+            <div class="note-box">
+                ${(d.notes||[]).map((n,i)=>`
                     <div class="note">
-                        <span>${n}</span>
+                        <span>${n.text}</span>
                         <button class="delete" onclick="deleteNote('${doc.id}',${i})">❌</button>
                     </div>
                 `).join("")}
@@ -233,6 +273,7 @@ linksRef.onSnapshot(snapshot=>{
         list.appendChild(div);
     });
 });
+
 </script>
 
 </body>
