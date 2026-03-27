@@ -1,4 +1,5 @@
-ml lang="uk">
+<!DOCTYPE html>
+<html lang="uk">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,18 +25,15 @@ body{
     box-shadow:0 10px 30px rgba(0,0,0,0.1);
 }
 
-h1{
-    text-align:center;
-    color:#6a3df0;
-}
+h1{text-align:center;color:#6a3df0;}
 
-.add-box{
+.add-box,.search-box{
     display:flex;
     gap:10px;
-    margin-bottom:10px;
+    margin-bottom:15px;
 }
 
-.add-box input{
+input{
     flex:1;
     padding:10px;
     border-radius:10px;
@@ -52,19 +50,6 @@ button{
     font-size:12px;
 }
 
-.search-box{
-    margin-bottom:15px;
-    display:flex;
-    gap:10px;
-}
-
-.search-box input{
-    flex:1;
-    padding:10px;
-    border-radius:10px;
-    border:1px solid #ddd;
-}
-
 .link-card{
     border:1px solid #eee;
     border-radius:15px;
@@ -73,11 +58,7 @@ button{
     background:#fafaff;
 }
 
-.top-row{
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
+.top-row{display:flex;align-items:center;gap:10px;}
 
 .favicon{width:32px;height:32px;}
 
@@ -87,36 +68,34 @@ a{
     text-decoration:none;
 }
 
-.note-box{
-    margin-top:10px;
-}
-
 .note{
     background:#f3f3ff;
-    padding:8px;
-    margin-top:6px;
+    padding:10px;
+    margin-top:8px;
     border-radius:8px;
     font-size:13px;
 }
 
-.tags{
-    font-size:11px;
-    color:#6a3df0;
-    margin-top:3px;
+.tags{font-size:11px;color:#6a3df0;margin-top:4px;}
+
+.modal{
+    position:fixed;
+    top:0;left:0;
+    width:100%;height:100%;
+    background:rgba(0,0,0,0.5);
+    display:none;
+    justify-content:center;
+    align-items:center;
 }
 
-.toolbar{
+.modal-content{
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    width:400px;
     display:flex;
-    gap:5px;
-    flex-wrap:wrap;
-    margin-top:5px;
-}
-
-.footer{
-    text-align:center;
-    margin-top:20px;
-    font-size:12px;
-    color:#888;
+    flex-direction:column;
+    gap:10px;
 }
 </style>
 </head>
@@ -124,7 +103,6 @@ a{
 <body>
 
 <div class="container">
-
 <h1>🌐 PRO Нотатки</h1>
 
 <div class="add-box">
@@ -133,11 +111,21 @@ a{
 </div>
 
 <div class="search-box">
-    <input id="search" placeholder="Пошук по тексту / тегах" oninput="render()">
+    <input id="search" placeholder="Пошук..." oninput="render()">
 </div>
 
 <div id="list"></div>
+</div>
 
+<!-- MODAL EDITOR -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Редагування</h3>
+        <textarea id="noteText" rows="6" placeholder="Текст..."></textarea>
+        <input id="noteTags" placeholder="Теги через кому">
+        <button onclick="saveNote()">💾 Зберегти</button>
+        <button onclick="closeModal()">❌ Закрити</button>
+    </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -154,19 +142,29 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const col = db.collection("links");
 
-let cache = [];
+let cache=[];
+
+// ===== MODAL STATE =====
+let mode = null; // note/subnote
+let siteId = null;
+let noteId = null;
+let subId = null;
+
+// ===== LINKIFY =====
+function linkify(text){
+    if(!text) return "";
+    return text.replace(/(https?:\/\/[^\s]+)/g,
+        `<a href="$1" target="_blank">$1</a>`
+    );
+}
 
 // ===== ADD SITE =====
 function addSite(){
-    const url = document.getElementById("newUrl").value.trim();
-    if(!url) return alert("Встав URL!");
+    const url=document.getElementById("newUrl").value.trim();
+    if(!url) return;
 
-    const id = btoa(url);
-
-    col.doc(id).set({
+    col.doc(btoa(url)).set({
         url,
-        image:null,
-        tags:[],
         notes:[],
         created:Date.now()
     });
@@ -174,112 +172,95 @@ function addSite(){
     document.getElementById("newUrl").value="";
 }
 
-// ===== DELETE SITE =====
-function deleteSite(id){
-    if(confirm("Видалити весь сайт?")){
-        col.doc(id).delete();
+// ===== OPEN MODAL =====
+function openModal(type,sId,nId=null,sub=null,data=null){
+    mode=type;
+    siteId=sId;
+    noteId=nId;
+    subId=sub;
+
+    document.getElementById("modal").style.display="flex";
+
+    if(data){
+        document.getElementById("noteText").value=data.text||"";
+        document.getElementById("noteTags").value=(data.tags||[]).join(",");
+    }else{
+        document.getElementById("noteText").value="";
+        document.getElementById("noteTags").value="";
     }
 }
 
-// ===== NOTES =====
-function addNote(id){
-    const text = prompt("Текст нотатки:");
-    if(!text) return;
+// ===== CLOSE =====
+function closeModal(){
+    document.getElementById("modal").style.display="none";
+}
 
-    const tags = prompt("Теги через кому:") || "";
+// ===== SAVE NOTE / SUBNOTE =====
+function saveNote(){
+    const text=document.getElementById("noteText").value;
+    const tags=document.getElementById("noteTags").value.split(",").map(t=>t.trim());
 
-    col.doc(id).get().then(doc=>{
-        const d = doc.data();
+    col.doc(siteId).get().then(doc=>{
+        const d=doc.data();
 
-        d.notes.push({
-            id:Date.now(),
-            text,
-            tags:tags.split(",").map(t=>t.trim()),
-            style:{fontSize:"14px",fontFamily:"Arial"},
-            subnotes:[]
-        });
+        if(mode==="note"){
+            if(noteId){
+                const n=d.notes.find(n=>n.id===noteId);
+                n.text=text;
+                n.tags=tags;
+            }else{
+                d.notes.push({
+                    id:Date.now(),
+                    text,
+                    tags,
+                    subnotes:[]
+                });
+            }
+        }
 
-        col.doc(id).update({notes:d.notes});
+        if(mode==="sub"){
+            const n=d.notes.find(n=>n.id===noteId);
+            n.subnotes.push({
+                id:Date.now(),
+                text,
+                tags:[]
+            });
+        }
+
+        col.doc(siteId).update({notes:d.notes});
+        closeModal();
     });
 }
 
-// ===== EDIT NOTE =====
-function editNote(siteId,noteId){
-    col.doc(siteId).get().then(doc=>{
-        const d = doc.data();
-        const note = d.notes.find(n=>n.id===noteId);
-
-        note.text = prompt("Редагувати:", note.text) || note.text;
-
-        const tags = prompt("Теги:", note.tags.join(",")) || "";
-        note.tags = tags.split(",").map(t=>t.trim());
-
-        col.doc(siteId).update({notes:d.notes});
-    });
+// ===== DELETE SITE =====
+function deleteSite(id){
+    col.doc(id).delete();
 }
 
 // ===== DELETE NOTE =====
-function deleteNote(siteId,noteId){
-    if(!confirm("Видалити нотатку?")) return;
-
-    col.doc(siteId).get().then(doc=>{
-        const d = doc.data();
-        d.notes = d.notes.filter(n=>n.id!==noteId);
-        col.doc(siteId).update({notes:d.notes});
+function deleteNote(sid,nid){
+    col.doc(sid).get().then(doc=>{
+        const d=doc.data();
+        d.notes=d.notes.filter(n=>n.id!==nid);
+        col.doc(sid).update({notes:d.notes});
     });
 }
 
-// ===== SUBNOTE =====
-function addSubnote(siteId,noteId){
-    const text = prompt("Примітка:");
-    if(!text) return;
-
-    col.doc(siteId).get().then(doc=>{
-        const d = doc.data();
-        const note = d.notes.find(n=>n.id===noteId);
-
-        note.subnotes.push({
-            id:Date.now(),
-            text,
-            tags:[]
-        });
-
-        col.doc(siteId).update({notes:d.notes});
-    });
-}
-
-// ===== EDIT SUBNOTE =====
-function editSubnote(siteId,noteId,subId){
-    col.doc(siteId).get().then(doc=>{
-        const d = doc.data();
-        const note = d.notes.find(n=>n.id===noteId);
-        const sub = note.subnotes.find(s=>s.id===subId);
-
-        sub.text = prompt("Редагувати:", sub.text) || sub.text;
-
-        col.doc(siteId).update({notes:d.notes});
-    });
-}
-
-// ===== DELETE SUBNOTE =====
-function deleteSubnote(siteId,noteId,subId){
-    if(!confirm("Видалити примітку?")) return;
-
-    col.doc(siteId).get().then(doc=>{
-        const d = doc.data();
-        const note = d.notes.find(n=>n.id===noteId);
-        note.subnotes = note.subnotes.filter(s=>s.id!==subId);
-
-        col.doc(siteId).update({notes:d.notes});
+// ===== DELETE SUB =====
+function deleteSub(sid,nid,sb){
+    col.doc(sid).get().then(doc=>{
+        const d=doc.data();
+        const n=d.notes.find(n=>n.id===nid);
+        n.subnotes=n.subnotes.filter(s=>s.id!==sb);
+        col.doc(sid).update({notes:d.notes});
     });
 }
 
 // ===== SEARCH =====
-function matchSearch(data,q){
-    q = q.toLowerCase();
-
-    return data.url.toLowerCase().includes(q) ||
-    (data.notes||[]).some(n=>
+function match(d,q){
+    q=q.toLowerCase();
+    return d.url.toLowerCase().includes(q) ||
+    (d.notes||[]).some(n=>
         n.text.toLowerCase().includes(q) ||
         (n.tags||[]).join(" ").toLowerCase().includes(q) ||
         (n.subnotes||[]).some(s=>s.text.toLowerCase().includes(q))
@@ -288,68 +269,56 @@ function matchSearch(data,q){
 
 // ===== RENDER =====
 function render(){
-    const list = document.getElementById("list");
-    const q = document.getElementById("search").value.trim().toLowerCase();
-
+    const q=document.getElementById("search").value.toLowerCase();
+    const list=document.getElementById("list");
     list.innerHTML="";
 
     cache.forEach(doc=>{
-        const d = doc.data();
-        if(q && !matchSearch(d,q)) return;
+        const d=doc.data();
+        if(q && !match(d,q)) return;
 
-        const domain = new URL(d.url).hostname;
-        const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+        const domain=new URL(d.url).hostname;
+        const fav=`https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
-        const div = document.createElement("div");
+        const div=document.createElement("div");
         div.className="link-card";
 
         div.innerHTML=`
             <div class="top-row">
-                <img class="favicon" src="${favicon}">
+                <img class="favicon" src="${fav}">
                 <a href="${d.url}" target="_blank">${domain}</a>
                 <button onclick="deleteSite('${doc.id}')">❌</button>
             </div>
 
-            <div class="toolbar">
-                <button onclick="addNote('${doc.id}')">+ нотатка</button>
-            </div>
+            <button onclick="openModal('note','${doc.id}')">+ нотатка</button>
 
-            <div class="note-box">
-                ${(d.notes||[]).map(n=>`
-                    <div class="note">
-                        <b>${n.text}</b><br>
+            ${(d.notes||[]).map(n=>`
+                <div class="note">
+                    <b>${linkify(n.text)}</b>
+                    <div class="tags">#${(n.tags||[]).join(" #")}</div>
 
-                        <div class="tags">#${(n.tags||[]).join(" #")}</div>
+                    <button onclick="openModal('note','${doc.id}',${n.id},null,${JSON.stringify(n).replace(/"/g,'&quot;')})">✏️</button>
+                    <button onclick="deleteNote('${doc.id}',${n.id})">🗑</button>
+                    <button onclick="openModal('sub','${doc.id}',${n.id})">+ примітка</button>
 
-                        <div>
-                            <button onclick="editNote('${doc.id}',${n.id})">✏️</button>
-                            <button onclick="deleteNote('${doc.id}',${n.id})">🗑</button>
-                            <button onclick="addSubnote('${doc.id}',${n.id})">+ примітка</button>
+                    ${(n.subnotes||[]).map(s=>`
+                        <div style="margin-left:15px">
+                            - ${linkify(s.text)}
+                            <button onclick="deleteSub('${doc.id}',${n.id},${s.id})">🗑</button>
                         </div>
-
-                        ${(n.subnotes||[]).map(s=>`
-                            <div style="margin-left:15px;margin-top:5px;">
-                                - ${s.text}
-                                <button onclick="editSubnote('${doc.id}',${n.id},${s.id})">✏️</button>
-                                <button onclick="deleteSubnote('${doc.id}',${n.id},${s.id})">🗑</button>
-                            </div>
-                        `).join("")}
-                    </div>
-                `).join("")}
-            </div>
+                    `).join("")}
+                </div>
+            `).join("")}
         `;
 
         list.appendChild(div);
     });
 }
 
-// ===== REALTIME =====
-col.onSnapshot(snapshot=>{
+// ===== FIREBASE =====
+col.onSnapshot(s=>{
     cache=[];
-    snapshot.forEach(d=>cache.push(d));
+    s.forEach(d=>cache.push(d));
     render();
 });
 </script>
-
-</body>
-</html>
