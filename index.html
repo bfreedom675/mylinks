@@ -50,6 +50,18 @@ button{
     font-size:12px;
 }
 
+/* 🔥 NOTE STYLE (BIGGER FONT) */
+.note{
+    background:#f3f3ff;
+    padding:12px;
+    margin-top:8px;
+    border-radius:8px;
+    font-size:18px; /* ЗБІЛЬШЕНО */
+    line-height:1.4;
+}
+
+.tags{font-size:11px;color:#6a3df0;margin-top:4px;}
+
 .link-card{
     border:1px solid #eee;
     border-radius:15px;
@@ -68,16 +80,7 @@ a{
     text-decoration:none;
 }
 
-.note{
-    background:#f3f3ff;
-    padding:10px;
-    margin-top:8px;
-    border-radius:8px;
-    font-size:13px;
-}
-
-.tags{font-size:11px;color:#6a3df0;margin-top:4px;}
-
+/* MODAL */
 .modal{
     position:fixed;
     top:0;left:0;
@@ -92,10 +95,30 @@ a{
     background:white;
     padding:20px;
     border-radius:12px;
-    width:400px;
+    width:450px;
     display:flex;
     flex-direction:column;
     gap:10px;
+}
+
+/* 🔥 EDITOR */
+.editor{
+    min-height:120px;
+    border:1px solid #ddd;
+    padding:10px;
+    border-radius:10px;
+    font-size:16px;
+}
+
+.toolbar{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+}
+
+.toolbar button, .toolbar select{
+    font-size:12px;
+    padding:5px;
 }
 </style>
 </head>
@@ -117,12 +140,36 @@ a{
 <div id="list"></div>
 </div>
 
-<!-- MODAL EDITOR -->
+<!-- MODAL -->
 <div class="modal" id="modal">
     <div class="modal-content">
-        <h3 id="modalTitle">Редагування</h3>
-        <textarea id="noteText" rows="6" placeholder="Текст..."></textarea>
+
+        <h3>Редагування</h3>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar">
+            <button onclick="cmd('bold')"><b>B</b></button>
+            <button onclick="cmd('italic')"><i>I</i></button>
+
+            <select onchange="cmd('fontSize',this.value)">
+                <option value="3">Малий</option>
+                <option value="4" selected>Середній</option>
+                <option value="5">Великий</option>
+            </select>
+
+            <select onchange="cmd('fontName',this.value)">
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Courier New">Courier</option>
+                <option value="Tahoma">Tahoma</option>
+            </select>
+        </div>
+
+        <!-- EDITOR -->
+        <div id="noteEditor" class="editor" contenteditable="true"></div>
+
         <input id="noteTags" placeholder="Теги через кому">
+
         <button onclick="saveNote()">💾 Зберегти</button>
         <button onclick="closeModal()">❌ Закрити</button>
     </div>
@@ -144,18 +191,14 @@ const col = db.collection("links");
 
 let cache=[];
 
-// ===== MODAL STATE =====
-let mode = null; // note/subnote
-let siteId = null;
-let noteId = null;
-let subId = null;
+let mode=null;
+let siteId=null;
+let noteId=null;
+let subId=null;
 
-// ===== LINKIFY =====
-function linkify(text){
-    if(!text) return "";
-    return text.replace(/(https?:\/\/[^\s]+)/g,
-        `<a href="$1" target="_blank">$1</a>`
-    );
+// ===== FORMAT COMMANDS =====
+function cmd(command,value=null){
+    document.execCommand(command,false,value);
 }
 
 // ===== ADD SITE =====
@@ -172,7 +215,7 @@ function addSite(){
     document.getElementById("newUrl").value="";
 }
 
-// ===== OPEN MODAL =====
+// ===== MODAL =====
 function openModal(type,sId,nId=null,sub=null,data=null){
     mode=type;
     siteId=sId;
@@ -182,22 +225,21 @@ function openModal(type,sId,nId=null,sub=null,data=null){
     document.getElementById("modal").style.display="flex";
 
     if(data){
-        document.getElementById("noteText").value=data.text||"";
+        document.getElementById("noteEditor").innerHTML=data.text||"";
         document.getElementById("noteTags").value=(data.tags||[]).join(",");
     }else{
-        document.getElementById("noteText").value="";
+        document.getElementById("noteEditor").innerHTML="";
         document.getElementById("noteTags").value="";
     }
 }
 
-// ===== CLOSE =====
 function closeModal(){
     document.getElementById("modal").style.display="none";
 }
 
-// ===== SAVE NOTE / SUBNOTE =====
+// ===== SAVE =====
 function saveNote(){
-    const text=document.getElementById("noteText").value;
+    const text=document.getElementById("noteEditor").innerHTML;
     const tags=document.getElementById("noteTags").value.split(",").map(t=>t.trim());
 
     col.doc(siteId).get().then(doc=>{
@@ -232,12 +274,9 @@ function saveNote(){
     });
 }
 
-// ===== DELETE SITE =====
-function deleteSite(id){
-    col.doc(id).delete();
-}
+// ===== DELETE =====
+function deleteSite(id){col.doc(id).delete();}
 
-// ===== DELETE NOTE =====
 function deleteNote(sid,nid){
     col.doc(sid).get().then(doc=>{
         const d=doc.data();
@@ -246,7 +285,6 @@ function deleteNote(sid,nid){
     });
 }
 
-// ===== DELETE SUB =====
 function deleteSub(sid,nid,sb){
     col.doc(sid).get().then(doc=>{
         const d=doc.data();
@@ -294,7 +332,8 @@ function render(){
 
             ${(d.notes||[]).map(n=>`
                 <div class="note">
-                    <b>${linkify(n.text)}</b>
+                    ${n.text}
+
                     <div class="tags">#${(n.tags||[]).join(" #")}</div>
 
                     <button onclick="openModal('note','${doc.id}',${n.id},null,${JSON.stringify(n).replace(/"/g,'&quot;')})">✏️</button>
@@ -303,7 +342,7 @@ function render(){
 
                     ${(n.subnotes||[]).map(s=>`
                         <div style="margin-left:15px">
-                            - ${linkify(s.text)}
+                            - ${s.text}
                             <button onclick="deleteSub('${doc.id}',${n.id},${s.id})">🗑</button>
                         </div>
                     `).join("")}
