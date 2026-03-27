@@ -1,9 +1,8 @@
-<!DOCTYPE html>
-<html lang="uk">
+ml lang="uk">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🌐Мої посилання</title>
+<title>🌐 Мої посилання (PRO Notes)</title>
 
 <style>
 body{
@@ -16,8 +15,8 @@ body{
 }
 
 .container{
-    width:90%;
-    max-width:800px;
+    width:95%;
+    max-width:900px;
     background:#fff;
     padding:25px;
     border-radius:20px;
@@ -33,7 +32,7 @@ h1{
 .add-box{
     display:flex;
     gap:10px;
-    margin-bottom:20px;
+    margin-bottom:10px;
 }
 
 .add-box input{
@@ -43,13 +42,27 @@ h1{
     border:1px solid #ddd;
 }
 
-.add-box button{
+button{
     background:#6a3df0;
     color:white;
     border:none;
-    padding:10px 15px;
-    border-radius:10px;
+    padding:8px 10px;
+    border-radius:8px;
     cursor:pointer;
+    font-size:12px;
+}
+
+.search-box{
+    margin-bottom:15px;
+    display:flex;
+    gap:10px;
+}
+
+.search-box input{
+    flex:1;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #ddd;
 }
 
 .link-card{
@@ -66,10 +79,7 @@ h1{
     gap:10px;
 }
 
-.favicon{
-    width:32px;
-    height:32px;
-}
+.favicon{width:32px;height:32px;}
 
 a{
     color:#333;
@@ -77,62 +87,29 @@ a{
     text-decoration:none;
 }
 
-.actions{
-    margin-top:10px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-}
-
-button{
-    padding:6px 10px;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-    background:#6a3df0;
-    color:white;
-    font-size:12px;
-}
-
-/* ⭐ ЛЕДЬ ПОМІТНА КНОПКА ВИДАЛЕННЯ */
-.delete-btn{
-    background:transparent;
-    color:#bdbdbd;
-    font-size:16px;
-    padding:4px 6px;
-    border:none;
-    cursor:pointer;
-    opacity:0.5;
-    transition:0.2s;
-}
-
-.delete-btn:hover{
-    opacity:1;
-    color:#8c8c8c;
-}
-
 .note-box{
     margin-top:10px;
-    background:#fff;
-    padding:10px;
-    border-radius:10px;
-    border:1px solid #eee;
 }
 
 .note{
-    display:flex;
-    justify-content:space-between;
     background:#f3f3ff;
-    padding:6px;
-    margin-top:5px;
+    padding:8px;
+    margin-top:6px;
     border-radius:8px;
     font-size:13px;
 }
 
-.preview-img{
-    margin-top:10px;
-    max-width:150px;
-    border-radius:10px;
+.tags{
+    font-size:11px;
+    color:#6a3df0;
+    margin-top:3px;
+}
+
+.toolbar{
+    display:flex;
+    gap:5px;
+    flex-wrap:wrap;
+    margin-top:5px;
 }
 
 .footer{
@@ -148,139 +125,215 @@ button{
 
 <div class="container">
 
-<h1>🌐Мої посилання</h1>
+<h1>🌐 PRO Нотатки</h1>
 
 <div class="add-box">
-    <input id="newUrl" placeholder="Встав посилання (https://...)">
-    <button onclick="addSite()">➕ Додати сайт</button>
+    <input id="newUrl" placeholder="Встав посилання">
+    <button onclick="addSite()">➕</button>
+</div>
+
+<div class="search-box">
+    <input id="search" placeholder="Пошук по тексту / тегах" oninput="render()">
 </div>
 
 <div id="list"></div>
 
-<div class="footer">© 2026 Мої ресурси</div>
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-
 const firebaseConfig = {
   apiKey: "AIzaSyAccAxcis95_-So-VZivM7D1ene56Eq-x0",
   authDomain: "mylinks-1f843.firebaseapp.com",
   projectId: "mylinks-1f843",
-  storageBucket: "mylinks-1f843.firebasestorage.app",
-  messagingSenderId: "138024507959",
-  appId: "1:138024507959:web:38d54a425786f4669a3db2",
-  measurementId: "G-LRDQYTHY4P"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const col = db.collection("links");
 
-// ADD SITE
-function addSite(){
-    const input = document.getElementById("newUrl");
-    const url = input.value.trim();
+let cache = [];
 
-    if(!url){
-        alert("Встав посилання!");
-        return;
-    }
+// ===== ADD SITE =====
+function addSite(){
+    const url = document.getElementById("newUrl").value.trim();
+    if(!url) return alert("Встав URL!");
 
     const id = btoa(url);
 
     col.doc(id).set({
         url,
-        notes: [],
-        image: null,
-        created: Date.now()
+        image:null,
+        tags:[],
+        notes:[],
+        created:Date.now()
     });
 
-    input.value = "";
+    document.getElementById("newUrl").value="";
 }
 
-// DELETE SITE
+// ===== DELETE SITE =====
 function deleteSite(id){
-    if(confirm("Видалити цей сайт повністю?")){
+    if(confirm("Видалити весь сайт?")){
         col.doc(id).delete();
     }
 }
 
-// NOTES
+// ===== NOTES =====
 function addNote(id){
-    const text = prompt("Введіть нотатку:");
+    const text = prompt("Текст нотатки:");
     if(!text) return;
 
+    const tags = prompt("Теги через кому:") || "";
+
     col.doc(id).get().then(doc=>{
-        const data = doc.data();
-        data.notes.push({text});
-        col.doc(id).update({notes:data.notes});
-    });
-}
-
-function deleteNote(id,index){
-    col.doc(id).get().then(doc=>{
-        const data = doc.data();
-        data.notes.splice(index,1);
-        col.doc(id).update({notes:data.notes});
-    });
-}
-
-// IMAGE
-function uploadImage(event,id){
-    const file = event.target.files[0];
-    if(!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e=>{
-        col.doc(id).update({image:e.target.result});
-    };
-    reader.readAsDataURL(file);
-}
-
-function deleteImage(id){
-    col.doc(id).update({image:null});
-}
-
-// REALTIME
-col.onSnapshot(snapshot=>{
-    const list = document.getElementById("list");
-    list.innerHTML = "";
-
-    snapshot.forEach(doc=>{
         const d = doc.data();
+
+        d.notes.push({
+            id:Date.now(),
+            text,
+            tags:tags.split(",").map(t=>t.trim()),
+            style:{fontSize:"14px",fontFamily:"Arial"},
+            subnotes:[]
+        });
+
+        col.doc(id).update({notes:d.notes});
+    });
+}
+
+// ===== EDIT NOTE =====
+function editNote(siteId,noteId){
+    col.doc(siteId).get().then(doc=>{
+        const d = doc.data();
+        const note = d.notes.find(n=>n.id===noteId);
+
+        note.text = prompt("Редагувати:", note.text) || note.text;
+
+        const tags = prompt("Теги:", note.tags.join(",")) || "";
+        note.tags = tags.split(",").map(t=>t.trim());
+
+        col.doc(siteId).update({notes:d.notes});
+    });
+}
+
+// ===== DELETE NOTE =====
+function deleteNote(siteId,noteId){
+    if(!confirm("Видалити нотатку?")) return;
+
+    col.doc(siteId).get().then(doc=>{
+        const d = doc.data();
+        d.notes = d.notes.filter(n=>n.id!==noteId);
+        col.doc(siteId).update({notes:d.notes});
+    });
+}
+
+// ===== SUBNOTE =====
+function addSubnote(siteId,noteId){
+    const text = prompt("Примітка:");
+    if(!text) return;
+
+    col.doc(siteId).get().then(doc=>{
+        const d = doc.data();
+        const note = d.notes.find(n=>n.id===noteId);
+
+        note.subnotes.push({
+            id:Date.now(),
+            text,
+            tags:[]
+        });
+
+        col.doc(siteId).update({notes:d.notes});
+    });
+}
+
+// ===== EDIT SUBNOTE =====
+function editSubnote(siteId,noteId,subId){
+    col.doc(siteId).get().then(doc=>{
+        const d = doc.data();
+        const note = d.notes.find(n=>n.id===noteId);
+        const sub = note.subnotes.find(s=>s.id===subId);
+
+        sub.text = prompt("Редагувати:", sub.text) || sub.text;
+
+        col.doc(siteId).update({notes:d.notes});
+    });
+}
+
+// ===== DELETE SUBNOTE =====
+function deleteSubnote(siteId,noteId,subId){
+    if(!confirm("Видалити примітку?")) return;
+
+    col.doc(siteId).get().then(doc=>{
+        const d = doc.data();
+        const note = d.notes.find(n=>n.id===noteId);
+        note.subnotes = note.subnotes.filter(s=>s.id!==subId);
+
+        col.doc(siteId).update({notes:d.notes});
+    });
+}
+
+// ===== SEARCH =====
+function matchSearch(data,q){
+    q = q.toLowerCase();
+
+    return data.url.toLowerCase().includes(q) ||
+    (data.notes||[]).some(n=>
+        n.text.toLowerCase().includes(q) ||
+        (n.tags||[]).join(" ").toLowerCase().includes(q) ||
+        (n.subnotes||[]).some(s=>s.text.toLowerCase().includes(q))
+    );
+}
+
+// ===== RENDER =====
+function render(){
+    const list = document.getElementById("list");
+    const q = document.getElementById("search").value.trim().toLowerCase();
+
+    list.innerHTML="";
+
+    cache.forEach(doc=>{
+        const d = doc.data();
+        if(q && !matchSearch(d,q)) return;
 
         const domain = new URL(d.url).hostname;
         const favicon = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
         const div = document.createElement("div");
-        div.className = "link-card";
+        div.className="link-card";
 
-        div.innerHTML = `
+        div.innerHTML=`
             <div class="top-row">
                 <img class="favicon" src="${favicon}">
                 <a href="${d.url}" target="_blank">${domain}</a>
+                <button onclick="deleteSite('${doc.id}')">❌</button>
             </div>
 
-            <div class="actions">
-                <button onclick="addNote('${doc.id}')">➕ Нотатка</button>
-                <input type="file" onchange="uploadImage(event,'${doc.id}')">
-
-                ${d.image ? `<button onclick="deleteImage('${doc.id}')">🗑 Фото</button>` : ""}
-
-                <button class="delete-btn" onclick="deleteSite('${doc.id}')">❌</button>
+            <div class="toolbar">
+                <button onclick="addNote('${doc.id}')">+ нотатка</button>
             </div>
-
-            ${d.image ? `<img class="preview-img" src="${d.image}">` : ""}
 
             <div class="note-box">
-                ${(d.notes||[]).map((n,i)=>`
+                ${(d.notes||[]).map(n=>`
                     <div class="note">
-                        <span>${n.text}</span>
-                        <button onclick="deleteNote('${doc.id}',${i})">❌</button>
+                        <b>${n.text}</b><br>
+
+                        <div class="tags">#${(n.tags||[]).join(" #")}</div>
+
+                        <div>
+                            <button onclick="editNote('${doc.id}',${n.id})">✏️</button>
+                            <button onclick="deleteNote('${doc.id}',${n.id})">🗑</button>
+                            <button onclick="addSubnote('${doc.id}',${n.id})">+ примітка</button>
+                        </div>
+
+                        ${(n.subnotes||[]).map(s=>`
+                            <div style="margin-left:15px;margin-top:5px;">
+                                - ${s.text}
+                                <button onclick="editSubnote('${doc.id}',${n.id},${s.id})">✏️</button>
+                                <button onclick="deleteSubnote('${doc.id}',${n.id},${s.id})">🗑</button>
+                            </div>
+                        `).join("")}
                     </div>
                 `).join("")}
             </div>
@@ -288,6 +341,15 @@ col.onSnapshot(snapshot=>{
 
         list.appendChild(div);
     });
-});
+}
 
+// ===== REALTIME =====
+col.onSnapshot(snapshot=>{
+    cache=[];
+    snapshot.forEach(d=>cache.push(d));
+    render();
+});
 </script>
+
+</body>
+</html>
